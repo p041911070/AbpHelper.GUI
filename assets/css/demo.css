@@ -137,6 +137,15 @@
   color: var(--color-accent);
 }
 
+.demo-box p {
+  word-break: break-all;
+  margin-top: 0.3em;
+}
+
+.demo-box label span {
+  color: var(--color);
+}
+
 .hidden {
   display: none;
 }

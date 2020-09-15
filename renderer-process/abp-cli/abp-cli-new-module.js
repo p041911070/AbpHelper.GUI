@@ -4,20 +4,50 @@ const exec = require('child_process').exec
 let isRunning = false
 
 let isNoUi = false
+let isCreateSolutionFolder = false
 
 let consoleNode = document.getElementById('box-abp-cli-new-module').getElementsByTagName('textarea')[0]
 
 const execBtn = document.getElementById('module-execute')
-const selectFolderBtn = document.getElementById('module-select-folder-btn')
+const projectFolderSelectBtn = document.getElementById('module-project-folder-selectBtn')
+const templateSourceSelectBtn = document.getElementById('module-template-source-selectBtn')
+const abpPathSelectBtn = document.getElementById('module-abp-path-selectBtn')
 const noUiCheckbox = document.getElementById('module-no-ui')
+const createSolutionFolderCheckbox = document.getElementById('module-create-solution-folder')
 
-selectFolderBtn.addEventListener('click', (event) => {
+projectFolderSelectBtn.addEventListener('click', (event) => {
   dialog.showOpenDialog({
     properties: ['openDirectory']
-  }, (files) => {
-    if (files) {
-      document.getElementById('module-project-folder').value = files[0]
+  }).then(result => {
+    if (result.filePaths[0]) {
+      document.getElementById('module-project-folder').value = result.filePaths[0]
     }
+  }).catch(err => {
+    console.log(err)
+  })
+})
+
+templateSourceSelectBtn.addEventListener('click', (event) => {
+  dialog.showOpenDialog({
+    properties: ['openDirectory']
+  }).then(result => {
+    if (result.filePaths[0]) {
+      document.getElementById('module-template-source').value = result.filePaths[0]
+    }
+  }).catch(err => {
+    console.log(err)
+  })
+})
+
+abpPathSelectBtn.addEventListener('click', (event) => {
+  dialog.showOpenDialog({
+    properties: ['openDirectory']
+  }).then(result => {
+    if (result.filePaths[0]) {
+      document.getElementById('module-abp-path').value = result.filePaths[0]
+    }
+  }).catch(err => {
+    console.log(err)
   })
 })
 
@@ -29,23 +59,39 @@ noUiCheckbox.addEventListener('click', (event) => {
   isNoUi = noUiCheckbox.checked
 })
 
+createSolutionFolderCheckbox.addEventListener('click', (event) => {
+  isCreateSolutionFolder = createSolutionFolderCheckbox.checked
+})
+
+function addDoubleQuote(str) {
+  return '"' + str + '"'
+}
+
 function runExec() {
-  let projName = document.getElementById('module-project-name').value
+  let solutionName = document.getElementById('module-solution-name').value
   let cmdPath = document.getElementById('module-project-folder').value
-  let abpVersion = document.getElementById('module-project-version').value
-  if (isRunning || !projName || !cmdPath || !abpVersion) return
+  let abpVersion = document.getElementById('module-abp-version').value
+  let templateSource = document.getElementById('module-template-source').value
+  let connectionString = document.getElementById('module-connection-string').value
+  let abpPath = document.getElementById('module-abp-path').value
+  if (isRunning || !solutionName || !cmdPath) return
   isRunning = true
   execBtn.disabled = true
   document.getElementById('module-process').style.display = 'block'
 
-  let cmdStr = 'abp new ' + projName + ' -t module'
+  let cmdStr = 'abp new ' + addDoubleQuote(solutionName) + ' -t module'
   if (isNoUi) cmdStr += ' --no-ui'
-  if (abpVersion.trim() !== 'latest') cmdStr += ' -v ' + abpVersion
+  if (abpVersion) cmdStr += ' -v ' + addDoubleQuote(abpVersion)
+  if (templateSource) cmdStr += ' -ts ' + addDoubleQuote(templateSource)
+  if (isCreateSolutionFolder) cmdStr += ' -csf true'
+  if (connectionString) cmdStr += ' -cs ' + addDoubleQuote(connectionString)
+  if (abpPath) cmdStr += ' --local-framework-ref --abp-path ' + addDoubleQuote(abpPath)
   clearConsoleContent()
   addConsoleContent(cmdStr + '\n\nRunning...\n')
   scrollConsoleToBottom()
   console.log(cmdStr)
-  workerProcess = exec('chcp 65001 & ' + cmdStr, {cwd: cmdPath})
+  if (process.platform === 'win32') cmdStr = '@chcp 65001 >nul & cmd /d/s/c ' + cmdStr
+  workerProcess = exec(cmdStr, {cwd: cmdPath})
   
   workerProcess.stdout.on('data', function (data) {
     addConsoleContent(data)

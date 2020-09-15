@@ -14,16 +14,22 @@ selectFileBtn.addEventListener('click', (event) => {
       { name: 'Abp Project', extensions: ['csproj'] },
     ],
     properties: ['openFile']
-  }, (files) => {
-    if (files) {
-      document.getElementById('add-package-project-file').value = files[0]
+  }).then(result => {
+    if (result.filePaths[0]) {
+      document.getElementById('add-package-project-file').value = result.filePaths[0]
     }
+  }).catch(err => {
+    console.log(err)
   })
 })
 
 execBtn.addEventListener('click', (event) => {
   runExec()
 })
+
+function addDoubleQuote(str) {
+  return '"' + str + '"'
+}
 
 function runExec() {
   let packageName = document.getElementById('add-package-name').value
@@ -33,12 +39,13 @@ function runExec() {
   execBtn.disabled = true
   document.getElementById('add-package-process').style.display = 'block'
 
-  let cmdStr = 'abp add-package ' + packageName + ' -p ' + file
+  let cmdStr = 'abp add-package ' + addDoubleQuote(packageName) + ' -p ' + addDoubleQuote(file)
   clearConsoleContent()
   addConsoleContent(cmdStr + '\n\nRunning...\n')
   scrollConsoleToBottom()
   console.log(cmdStr)
-  workerProcess = exec('chcp 65001 & ' + cmdStr, {cwd: '/'})
+  if (process.platform === 'win32') cmdStr = '@chcp 65001 >nul & cmd /d/s/c ' + cmdStr
+  workerProcess = exec(cmdStr, {cwd: '/'})
   
   workerProcess.stdout.on('data', function (data) {
     addConsoleContent(data)

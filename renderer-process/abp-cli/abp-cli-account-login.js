@@ -10,21 +10,27 @@ execBtn.addEventListener('click', (event) => {
   runExec()
 })
 
+function addDoubleQuote(str) {
+  return '"' + str + '"'
+}
+
 function runExec() {
   let username = document.getElementById('account-login-username').value
   let password = document.getElementById('account-login-password').value
+  let organization = document.getElementById('account-login-organization').value
   if (isRunning || !username || !password) return
   isRunning = true
   execBtn.disabled = true
   document.getElementById('account-login-process').style.display = 'block'
 
-  let cmdStr = 'abp login ' + username
+  let cmdStr = 'abp login ' + addDoubleQuote(username) + ' -p ' + addDoubleQuote(password)
+  if (organization) cmdStr += ' -o ' + organization
   clearConsoleContent()
   addConsoleContent(cmdStr + '\n\nRunning...\n')
   scrollConsoleToBottom()
   console.log(cmdStr)
-  // Todo: how to input password?
-  workerProcess = exec('chcp 65001 & ' + cmdStr, {cwd: '/'})
+  if (process.platform === 'win32') cmdStr = '@chcp 65001 >nul & cmd /d/s/c ' + cmdStr
+  workerProcess = exec(cmdStr, {cwd: '/'})
   
   workerProcess.stdout.on('data', function (data) {
     addConsoleContent(data)

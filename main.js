@@ -12,6 +12,8 @@ const debug = /--debug/.test(process.argv[2])
 
 if (process.mas) app.setName('AbpHelper')
 
+if (process.platform === 'darwin') require('fix-path')()
+
 let mainWindow = null
 let contextMenu = null
 
@@ -23,7 +25,9 @@ function initialize () {
   loadDemos()
 
   function createTray() {
-    tray = new Tray(path.join(__dirname, '/assets/app-icon/png/32.png'))
+    let trayIcon = process.platform === 'darwin' ? '/assets/app-icon/tray/icon-darwin.png' : '/assets/app-icon/tray/icon.png'
+    console.log(trayIcon)
+    tray = new Tray(path.join(__dirname, trayIcon))
     buildTrayMenuFromTemplate()
     if (!debug) {
       checkForUpdate()
@@ -46,7 +50,7 @@ function initialize () {
       width: 1080,
       minWidth: 680,
       height: 840,
-      title: app.getName() + ' v' + app.getVersion(),
+      title: app.name + ' v' + app.getVersion(),
       webPreferences: {
         nodeIntegration: true
       },
@@ -65,7 +69,7 @@ function initialize () {
     if (debug) {
       mainWindow.webContents.openDevTools()
       mainWindow.maximize()
-      require('devtron').install()
+      // require('devtron').install()
     }
 
     mainWindow.on('closed', () => {
@@ -74,12 +78,6 @@ function initialize () {
     mainWindow.on('close', (event) => { 
       mainWindow.hide(); 
       if (!forceQuit) event.preventDefault();
-    });
-    mainWindow.on('show', () => {
-      tray.setHighlightMode('always')
-    })
-    mainWindow.on('hide', () => {
-      tray.setHighlightMode('never')
     })
   }
 
@@ -97,22 +95,30 @@ function initialize () {
   app.on('activate', () => {
     if (mainWindow === null) {
       createWindow()
+    }else if (process.platform === 'darwin' && !mainWindow.isVisible()) {
+      createWindow()
     }
   })
+
+  app.on('before-quit', () => {
+    if (process.platform === 'darwin') {
+         forceQuit = true;
+    }
+ });
 }
 
 let tray = null
 
 let checkUpdateMenuItem = {
   id: 'checkUpdate',
-  label: 'GUI: Ready for update checking',
+  label: 'GUI Version: Ready for update checking',
   enabled: false,
   click: async () => await checkForUpdate()
 }
 
 let cliCheckUpdateMenuItem = {
   id: 'cliCheckUpdate',
-  label: 'CLI: Ready for update checking',
+  label: 'CLI Version: Ready for update checking',
   enabled: false,
   click: async () => refreshAbphelperCliVersion()
 }
@@ -128,42 +134,42 @@ let cliUpdateMenuItem = {
   id: 'cliUpdate',
   label: 'Update AbpHelper CLI...',
   visible: false,
-  click: () => loadShowPage('modules-manager-abphelper-cli')
+  click: () => loadShowPage('abphelper-cli-installation')
 }
 
 let template = [{
-  label: 'Abp-CLI...',
+  label: 'Abp CLI...',
   click: () => loadShowPage('abp-cli-new')
 }, {
-  label: 'Code Generator...',
-  click: () => loadShowPage('code-generator-entity')
+  label: 'AbpHelper CLI...',
+  click: () => loadShowPage('abphelper-cli-generate-crud')
 }, {
   label: 'Modules Manager...',
-  click: () => loadShowPage('modules-manager-store')
-}, {
-  label: 'Awesome tools...',
-  click: () => loadShowPage('awesome-tools-ef-provider')
-}, {
-  type: 'separator'
+  click: () => loadShowPage('modules-manager-market')
+// }, {
+//   label: 'Awesome Tools...',
+//   click: () => loadShowPage('awesome-tools-ef-provider')
+// }, {
+//   type: 'separator'
 }, {
   label: 'Help',
   submenu: [{
     label: 'Resources',
     submenu: [{
       label: 'Abp Framework',
-      icon: 'assets/app-icon/menuitem/abp/icon.png',
+      icon: path.join(__dirname, '/assets/app-icon/menuitem/abp/icon.png'),
       click: () => shell.openExternal('https://abp.io')
     }, {
       label: 'Abp Commercial',
-      icon: 'assets/app-icon/menuitem/abp/icon.png',
+      icon: path.join(__dirname, '/assets/app-icon/menuitem/abp/icon.png'),
       click: () => shell.openExternal('https://commercial.abp.io')
     }, {
       label: 'AbpHelper GUI',
-      icon: 'assets/app-icon/menuitem/abphelper/icon.png',
+      icon: path.join(__dirname, '/assets/app-icon/menuitem/abphelper/icon.png'),
       click: () => shell.openExternal('https://github.com/EasyAbp/AbpHelper.GUI')
     }, {
       label: 'AbpHelper CLI',
-      icon: 'assets/app-icon/menuitem/abphelper/icon.png',
+      icon: path.join(__dirname, '/assets/app-icon/menuitem/abphelper/icon.png'),
       click: () => shell.openExternal('https://github.com/EasyAbp/AbpHelper.CLI')
     }]
   },
@@ -184,7 +190,7 @@ let template = [{
 }]
 
 function loadShowPage(tag) {
-  mainWindow.loadURL(path.join('file://', __dirname, '/index.html#' + tag))
+  app.emit('tray-nav-selected', tag);
   mainWindow.show()
 }
 
@@ -197,20 +203,21 @@ function buildTrayMenuFromTemplate() {
 async function checkForUpdate() {
   const currentVersion = app.getVersion()
   downloadReleaseMenuItem.visible = false
-  checkUpdateMenuItem.label = 'GUI: Checking for Update....'
+  checkUpdateMenuItem.label = 'GUI Version: Checking for Update....'
   checkUpdateMenuItem.enabled = false
-  const data = JSON.parse(await fetch('https://api.github.com/repos/EasyAbp/AbpHelper.GUI/releases/latest', {type: 'text'}))
-  if (data.tag_name) {
-    checkUpdateMenuItem.label = 'GUI: Latest: v' + data.tag_name + ' (Current: v' + currentVersion + ')'
+  const data = await (await fetch('https://api.github.com/repos/EasyAbp/AbpHelper.GUI/releases/latest', {type: 'text'})).json()
+  var tagName = data.tag_name.replace('v', '')
+  if (tagName) {
+    checkUpdateMenuItem.label = tagName == currentVersion ? 'GUI Version: v' + currentVersion : 'GUI Version: v' + currentVersion + ' (Latest: v' + tagName + ')'
     checkUpdateMenuItem.enabled = true
-    if (currentVersion != data.tag_name) {
+    if (currentVersion != tagName) {
       downloadReleaseMenuItem.visible = true
     }
   } else if (data.message && data.message.indexOf('API rate limit exceeded') == 0) {
-    checkUpdateMenuItem.label = 'GUI: Update checking failed (API rate limit exceeded)'
+    checkUpdateMenuItem.label = 'GUI Version: Update checking failed (API rate limit exceeded)'
     checkUpdateMenuItem.enabled = true
   } else {
-    checkUpdateMenuItem.label = 'GUI: Update checking failed'
+    checkUpdateMenuItem.label = 'GUI Version: Update checking failed'
     checkUpdateMenuItem.enabled = true
   }
   buildTrayMenuFromTemplate()
@@ -219,20 +226,20 @@ async function checkForUpdate() {
 async function cliCheckForUpdate() {
   const currentVersion = getAbphelperCliVersion()
   cliUpdateMenuItem.visible = false
-  cliCheckUpdateMenuItem.label = 'CLI: Checking for CLI Update....'
+  cliCheckUpdateMenuItem.label = 'CLI Version: Checking for CLI Update....'
   cliCheckUpdateMenuItem.enabled = false
-  const data = JSON.parse(await fetch('https://api.github.com/repos/EasyAbp/AbpHelper.CLI/releases/latest', {type: 'text'}))
+  const data = await (await fetch('https://api.github.com/repos/EasyAbp/AbpHelper.CLI/releases/latest', {type: 'text'})).json()
   if (data.tag_name) {
-    cliCheckUpdateMenuItem.label = 'CLI: Latest: v' + data.tag_name + ' (Current: v' + currentVersion + ')'
+    cliCheckUpdateMenuItem.label = data.tag_name == currentVersion ? 'CLI Version: v' + currentVersion : 'CLI Version: v' + currentVersion + ' (Latest: v' + data.tag_name + ')'
     cliCheckUpdateMenuItem.enabled = true
     if (currentVersion != data.tag_name) {
       cliUpdateMenuItem.visible = true
     }
   } else if (data.message && data.message.indexOf('API rate limit exceeded') == 0) {
-    cliCheckUpdateMenuItem.label = 'CLI: Update checking failed (API rate limit exceeded)'
+    cliCheckUpdateMenuItem.label = 'CLI Version: Update checking failed (API rate limit exceeded)'
     cliCheckUpdateMenuItem.enabled = true
   } else {
-    cliCheckUpdateMenuItem.label = 'CLI: Update checking failed'
+    cliCheckUpdateMenuItem.label = 'CLI Version: Update checking failed'
     cliCheckUpdateMenuItem.enabled = true
   }
   buildTrayMenuFromTemplate()
@@ -248,7 +255,9 @@ async function cliCheckForUpdate() {
 function makeSingleInstance () {
   if (process.mas) return
 
-  app.requestSingleInstanceLock()
+  if (!app.requestSingleInstanceLock()) {
+    app.quit()
+  }
 
   app.on('second-instance', () => {
     if (mainWindow) {
@@ -271,15 +280,16 @@ function getAbphelperCliVersion() {
 }
 
 function refreshAbphelperCliVersion() {
-  workerProcess = exec('abphelper --version', {cwd: '/'}, (error, stdout, stderr) => {
+  let cliCommand = process.platform === 'win32' ? '%USERPROFILE%\\.dotnet\\tools\\abphelper' : '$HOME/.dotnet/tools/abphelper'
+  if (process.platform === 'win32') cliCommand = '@chcp 65001 >nul & cmd /d/s/c ' + cliCommand
+  workerProcess = exec(cliCommand + ' --version', {cwd: '/'}, (error, stdout, stderr) => {
     if (error) {
       abphelperCliVersion = null
       console.log(error)
       console.log(stderr)
       return
     }
-    let version = stdout.replace(/[\r\n]/g, "")
-    abphelperCliVersion = version
+    abphelperCliVersion = stdout.replace(/[\r\n]/g, "")
     cliCheckForUpdate()
   })
 }
